@@ -8,7 +8,8 @@ from coordinates import normalize_coordinates
 
 
 app = FastAPI()
-USAGE = "Gửi tọa độ, ví dụ: 10,90242° B, 106,59664° Đ"
+EXAMPLE = "10,90242° B, 106,59664° Đ"
+USAGE = f"Nhắn riêng: {EXAMPLE}\nTrong nhóm: /toado {EXAMPLE}"
 
 
 def _environment(name: str) -> str:
@@ -64,17 +65,32 @@ async def webhook(
     if not isinstance(message, dict) or not isinstance(message.get("text"), str):
         return {"ok": True}
 
-    text = message["text"]
+    text = message["text"].strip()
+    chat = message.get("chat", {})
     if text.startswith("/start"):
         reply = USAGE
     else:
-        try:
-            reply = normalize_coordinates(text)
-        except ValueError:
-            reply = f"Không đọc được tọa độ. {USAGE}"
+        parts = text.split(maxsplit=1)
+        command = parts[0].split("@", 1)[0].lower()
+        if command == "/toado":
+            if len(parts) == 1:
+                reply = USAGE
+            else:
+                text = parts[1]
+                try:
+                    reply = normalize_coordinates(text)
+                except ValueError:
+                    reply = f"Không đọc được tọa độ. {USAGE}"
+        elif chat.get("type") in {"group", "supergroup"}:
+            return {"ok": True}
+        else:
+            try:
+                reply = normalize_coordinates(text)
+            except ValueError:
+                reply = f"Không đọc được tọa độ. {USAGE}"
 
     return {
         "method": "sendMessage",
-        "chat_id": message["chat"]["id"],
+        "chat_id": chat["id"],
         "text": reply,
     }
